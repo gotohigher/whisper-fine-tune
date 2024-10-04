@@ -10,6 +10,9 @@ import torchaudio
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
+print(torch.__version__)
+print(torch.cuda.is_available())
+print(torch.cuda.device_count())
 # -------------------- Data Loading and Preprocessing --------------------
 
 # Load the training and testing data
@@ -111,18 +114,23 @@ def compute_metrics(pred):
 model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-base")
 model.config.forced_decoder_ids = None
 model.config.suppress_tokens = []
+model.config.use_cache = False
+#device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+#print(model)
 
 # Set up training arguments
 training_args = Seq2SeqTrainingArguments(
     output_dir="./whisper-base-ge",  # change to a repo name of your choice
-    per_device_train_batch_size=16,
+    per_device_train_batch_size=2,
     gradient_accumulation_steps=1,
-    learning_rate=1e-6,
+    learning_rate=1e-7,
     warmup_steps=6,
-    max_steps=30,
+    max_steps=40,
     gradient_checkpointing=True,
-    fp16=True,
-    evaluation_strategy="steps",
+    fp16=False,
+    eval_strategy="steps",
     per_device_eval_batch_size=1,
     predict_with_generate=True,
     generation_max_length=225,
@@ -134,7 +142,7 @@ training_args = Seq2SeqTrainingArguments(
     greater_is_better=False,
     push_to_hub=False,
 )
-
+#print(training_args)
 # -------------------- Trainer Initialization and Training --------------------
 
 trainer = Seq2SeqTrainer(
@@ -146,11 +154,10 @@ trainer = Seq2SeqTrainer(
     compute_metrics=compute_metrics,
     tokenizer=processor.feature_extractor,
 )
+print(trainer)
 
 # Start the model training
 trainer.train()
 
 model.save_pretrained("new/model")
 processor.save_pretrained("new/model")
-
-

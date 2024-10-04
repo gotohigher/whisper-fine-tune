@@ -1,0 +1,7 @@
+datasets
+pandas
+transformers
+evaluate
+torch
+torchaudio
+typing
