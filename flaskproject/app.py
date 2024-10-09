@@ -39,9 +39,10 @@ def upload_file():
         file.save(file_path)
 
         # Call the transcribe function
-        transcription = transcribe_audio(file_path)
+        #transcription = transcribe_audio(file_path)
+        return jsonify(message="File uploaded successfully!", filename=filename), 201
 
-        return jsonify(message="File uploaded successfully!", filename=filename, transcription=transcription), 201
+        #return jsonify(message="File uploaded successfully!", filename=filename, transcription=transcription), 201
     
     return jsonify(error="File type not allowed"), 400
 
