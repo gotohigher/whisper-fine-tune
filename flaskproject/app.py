@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify
 import os
 from train import transcribe_audio  # Import the transcription function
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 # Configure the upload folder and allowed file extensions
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'wav'}  # Assuming you're uploading WAV files
@@ -45,4 +46,4 @@ def upload_file():
     return jsonify(error="File type not allowed"), 400
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)

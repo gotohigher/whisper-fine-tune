@@ -1,156 +1,102 @@
-# Import necessary libraries
-from datasets import Dataset, Audio
-import pandas as pd
-import gc
-from transformers import WhisperFeatureExtractor, WhisperTokenizer, WhisperProcessor, AutoProcessor, WhisperForConditionalGeneration, \
-    Seq2SeqTrainingArguments, Seq2SeqTrainer
-import evaluate
-import torch
+import os
 import torchaudio
-from dataclasses import dataclass
-from typing import Any, Dict, List, Union
+import torch
+from torch.utils.data import Dataset, DataLoader
+from transformers import WhisperForConditionalGeneration, WhisperProcessor, WhisperTokenizer
+from torch.nn.utils.rnn import pad_sequence
 
-# -------------------- Data Loading and Preprocessing --------------------
+# Dataset class to load audio files and their transcriptions
+class AudioDataset(Dataset):
+    def __init__(self, audio_dir, processor, tokenizer):
+        self.audio_dir = audio_dir
+        self.processor = processor
+        self.audio_files = self.load_audio_files(audio_dir)
+        print(self.audio_files)
+        self.transcriptions = self.load_transcriptions(audio_dir)        
+        self.tokenizer = tokenizer
 
-# Load the training and testing data
-train_df = pd.read_csv("data.csv")
-test_df = pd.read_csv("test.csv")
+    # def load_transcriptions(self, transcription_file):
+    #     with open(transcription_file, 'r') as f:
+    #         content = f.read()  # Read the entire file
+    #     return content
 
-# Rename the columns to "audio" and "sentence"
-train_df.columns = ["audio", "sentence"]
-test_df.columns = ["audio", "sentence"]
+    def load_transcriptions(self, audio_dir):
+        transcriptions = {}
+        for audio_file in self.audio_files:
+            # Assuming audio files are in .mp3 format and text files are .txt
+            base_name = os.path.splitext(audio_file)[0]
+            transcription_file = os.path.join(audio_dir, f"{base_name}.txt")
+            if os.path.exists(transcription_file):
+                with open(transcription_file, 'r') as f:
+                    transcriptions[audio_file] = f.read()  # Read and store transcription
+        return transcriptions
 
-# Convert the pandas dataframes to Dataset
-train_dataset = Dataset.from_pandas(train_df)
-test_dataset = Dataset.from_pandas(test_df)
+    def load_audio_files(self, audio_dir):
+        return [f for f in os.listdir(audio_dir) if f.endswith('.mp3')]
 
-# Convert the sample rate of every audio file
-train_dataset = train_dataset.cast_column("audio", Audio(sampling_rate=16000))
-test_dataset = test_dataset.cast_column("audio", Audio(sampling_rate=16000))
+    def __len__(self):
+        return len(self.audio_files)
 
-# -------------------- Feature Extraction and Tokenization --------------------
+    def __getitem__(self, idx):
+        audio_file = self.audio_files[idx]  # Get the audio file name
+        transcription_file = self.transcriptions[audio_file] # Get the specific transcription for the current index
+        # print(audio_file, transcription)
+        # Tokenize the transcription
+        transcription = self.tokenizer(transcription_file, return_tensors="pt").input_ids # Shape (N,)
+        
+        audio_path = os.path.join(self.audio_dir, audio_file)
+        waveform, sample_rate = torchaudio.load(audio_path)
+        if waveform.dim() == 2:  # Stereo audio
+            waveform = waveform.mean(dim=0, keepdim=True)
+        if sample_rate != 16_000:
+            waveform = torchaudio.functional.resample(waveform, sample_rate, 16_000)
+        # Process the audio waveform
+        inputs = self.processor(waveform.squeeze(0), return_tensors="pt", truncation=True, padding="longest", return_timestamps=True, return_attention_mask=True, sampling_rate=16_000)
+        
+        # Ensure that inputs['input_ids'] is accessed correctly
+        input_ids = inputs.input_features.squeeze(0)  # Shape (M,) where M is the number of input tokens
+        print(f"Input IDs shape: {input_ids.shape}, Transcription shape: {transcription.shape}")
+        
+        return input_ids, transcription.squeeze(0)  # Return both as tensors
 
-# Import feature extractor and tokenizer
-feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-base")
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-base", language="English", task="transcribe")
-processor = WhisperProcessor.from_pretrained("openai/whisper-base", language="English", task="transcribe")
-
-
-# Prepare the dataset by extracting features and encoding labels
-def prepare_dataset(examples):
-    # Compute log-Mel input features from input audio array
-    audio = examples["audio"]
-    examples["input_features"] = feature_extractor(audio["array"], sampling_rate=16000).input_features[0]
-    del examples["audio"]
-
-    sentences = examples["sentence"]
-    # Encode target text to label ids
-    examples["labels"] = tokenizer(sentences).input_ids
-    del examples["sentence"]
-    return examples
-
-
-# Map the prepare_dataset function to the datasets
-train_dataset = train_dataset.map(prepare_dataset, num_proc=1)
-test_dataset = test_dataset.map(prepare_dataset, num_proc=1)
-
-
-# -------------------- Data Collation --------------------
-
-@dataclass
-class DataCollatorSpeechSeq2SeqWithPadding:
-    processor: Any
-
-    def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
-        # Split inputs and labels since they have different lengths and padding methods
-        input_features = [{"input_features": feature["input_features"]} for feature in features]
-        batch = self.processor.feature_extractor.pad(input_features, return_tensors="pt")
-
-        # Get the tokenized label sequences
-        label_features = [{"input_ids": feature["labels"]} for feature in features]
-        labels_batch = self.processor.tokenizer.pad(label_features, return_tensors="pt")
-
-        # Replace padding with -100 to ignore loss correctly
-        labels = labels_batch["input_ids"].masked_fill(labels_batch.attention_mask.ne(1), -100)
-
-        # Cut bos token if appended in previous tokenization step
-        if (labels[:, 0] == self.processor.tokenizer.bos_token_id).all().cpu().item():
-            labels = labels[:, 1:]
-
-        batch["labels"] = labels
-        return batch
+# Function to fine-tune the Whisper model
+def collate_fn(batch):
+    inputs, transcriptions = zip(*batch)
+    inputs = pad_sequence(inputs, batch_first=True)  # Pad input IDs
+    transcriptions = pad_sequence(transcriptions, batch_first=True)  # Pad transcriptions
+    return inputs, transcriptions
 
 
-# Initiate the data collator
-data_collator = DataCollatorSpeechSeq2SeqWithPadding(processor=processor)
+def fine_tune_whisper(audio_dir, model, processor, tokenizer, num_epochs=3, batch_size=4):
+    dataset = AudioDataset(audio_dir, processor, tokenizer)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
 
-# -------------------- Metrics Computation --------------------
+    model.train()
+    for epoch in range(num_epochs):
+        for batch in dataloader:
+            inputs, transcriptions = batch
+            # labels = processor(transcriptions, return_tensors="pt", padding=True).input_ids
+            labels = transcriptions
 
-metric = evaluate.load("wer")
+            optimizer.zero_grad()
+            outputs = model(input_features=inputs, labels=labels)
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
+    model.save_pretrained("new/model")
+    processor.save_pretrained("new/model")
 
+# Main execution
+if __name__ == "__main__":
+    model_name = "openai/whisper-base"
+    processor = WhisperProcessor.from_pretrained(model_name, language="german", task="transcribe")
+    model = WhisperForConditionalGeneration.from_pretrained(model_name)
+    tokenizer = WhisperTokenizer.from_pretrained(model_name)
 
-def compute_metrics(pred):
-    pred_ids = pred.predictions
-    label_ids = pred.label_ids
+    audio_directory = "audio"  # Directory containing audio files
+    transcription_file = "1.txt"  # File with audio|transcription format
 
-    # Replace -100 with the pad_token_id
-    label_ids[label_ids == -100] = tokenizer.pad_token_id
-
-    # Decode predictions and labels
-    pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-    label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
-
-    # Compute Word Error Rate (WER)
-    wer = 100 * metric.compute(predictions=pred_str, references=label_str)
-    return {"wer": wer}
-
-
-# -------------------- Model Initialization and Training Configuration --------------------
-
-# Load the model
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-base")
-model.config.forced_decoder_ids = None
-model.config.suppress_tokens = []
-
-# Set up training arguments
-training_args = Seq2SeqTrainingArguments(
-    output_dir="./whisper-base-ge",  # change to a repo name of your choice
-    per_device_train_batch_size=16,
-    gradient_accumulation_steps=1,
-    learning_rate=1e-6,
-    warmup_steps=6,
-    max_steps=30,
-    gradient_checkpointing=True,
-    fp16=True,
-    evaluation_strategy="steps",
-    per_device_eval_batch_size=1,
-    predict_with_generate=True,
-    generation_max_length=225,
-    save_steps=5,
-    eval_steps=5,
-    report_to=["tensorboard"],
-    load_best_model_at_end=True,
-    metric_for_best_model="wer",
-    greater_is_better=False,
-    push_to_hub=False,
-)
-
-# -------------------- Trainer Initialization and Training --------------------
-
-trainer = Seq2SeqTrainer(
-    args=training_args,
-    model=model,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-    tokenizer=processor.feature_extractor,
-)
-
-# Start the model training
-trainer.train()
-
-model.save_pretrained("new/model")
-processor.save_pretrained("new/model")
-
-
+    # Fine-tune the model
+    fine_tune_whisper(audio_directory, model, processor, tokenizer)
