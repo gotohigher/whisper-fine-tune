@@ -32,7 +32,7 @@ class AudioDataset(Dataset):
         return transcriptions
 
     def load_audio_files(self, audio_dir):
-        return [f for f in os.listdir(audio_dir) if f.endswith('.mp3')]
+        return [f for f in os.listdir(audio_dir) if f.endswith('.mp3') or f.endswith('.wav')]
 
     def __len__(self):
         return len(self.audio_files)
@@ -85,18 +85,17 @@ def fine_tune_whisper(audio_dir, model, processor, tokenizer, num_epochs=3, batc
             loss.backward()
             optimizer.step()
             print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
-    model.save_pretrained("new/model")
-    processor.save_pretrained("new/model")
+    model.save_pretrained("../new/model")
+    processor.save_pretrained("../new/model")
+    return 'success'
 
 # Main execution
-if __name__ == "__main__":
+def start_fine_tune(data_directory):
     model_name = "openai/whisper-base"
     processor = WhisperProcessor.from_pretrained(model_name, language="german", task="transcribe")
     model = WhisperForConditionalGeneration.from_pretrained(model_name)
     tokenizer = WhisperTokenizer.from_pretrained(model_name)
 
-    audio_directory = "audio"  # Directory containing audio files
-    transcription_file = "1.txt"  # File with audio|transcription format
-
     # Fine-tune the model
-    fine_tune_whisper(audio_directory, model, processor, tokenizer)
+    result = fine_tune_whisper(data_directory, model, processor, tokenizer)
+    return result

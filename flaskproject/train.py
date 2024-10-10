@@ -4,9 +4,14 @@ from transformers import WhisperForConditionalGeneration, WhisperProcessor, Whis
 import os
 import torchaudio
 import torch.nn.functional as F
+import shutil
 
 def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5):
     # Load model and processor
+    OUTPUT_FOLDER = 'output'
+    TEXT_FOLDER = 'result'
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    os.makedirs(TEXT_FOLDER, exist_ok=True)
     model = WhisperForConditionalGeneration.from_pretrained(model_dir)
     processor = WhisperProcessor.from_pretrained(model_dir)
     tokenizer = WhisperTokenizer.from_pretrained(model_dir)
@@ -46,6 +51,7 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
                 "/usr/bin/ffmpeg", "-i", audio_file, "-ss", str(start), "-t", str(end_time - start), "-c", "copy", output_file
             ]
             subprocess.run(command)
+        os.remove(audio_file)
 
     # Function to format time
     def format_time(seconds):
@@ -152,14 +158,14 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
             transcription_only.append(transcription)
 
     # Save transcriptions to files
-    with open("full_transcription_with_timestamps.txt", "w", encoding="utf-8") as f:
+    with open(f"{TEXT_FOLDER}/full_transcription_with_timestamps.txt", "w", encoding="utf-8") as f:
         for line in full_transcription:
             f.write(line + "\n")
-    with open("full_transcription_only.txt", "w", encoding="utf-8") as f:
+    with open(f"{TEXT_FOLDER}/full_transcription_only.txt", "w", encoding="utf-8") as f:
         for line in transcription_only:
             f.write(line + "\n")
-
+    shutil.rmtree('output')
     print("Transcription completed and saved to full_transcription_with_timestamps.txt.")
-
+    return TEXT_FOLDER
 # Example usage
-#transcribe_audio_file("1.wav", "../new/model", cut_duration=30, overlap_duration=5)
+# transcribe_audio("5.mp3", "../new/model", cut_duration=30, overlap_duration=5)
