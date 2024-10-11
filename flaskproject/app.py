@@ -17,6 +17,7 @@ app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
 
 # Create the uploads folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
     """Check if the uploaded file is allowed."""
