@@ -93,7 +93,7 @@ def fine_tune_whisper(audio_dir, model, processor, tokenizer, num_epochs=3, batc
 def start_fine_tune(data_directory):
     model_name = "openai/whisper-base"
     processor = WhisperProcessor.from_pretrained(model_name, language="german", task="transcribe")
-    model = WhisperForConditionalGeneration.from_pretrained(model_name)
+    model = WhisperForConditionalGeneration.from_pretrained(model_name).to('cuda')
     tokenizer = WhisperTokenizer.from_pretrained(model_name)
 
     # Fine-tune the model

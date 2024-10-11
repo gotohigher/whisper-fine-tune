@@ -12,7 +12,7 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
     TEXT_FOLDER = 'result'
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     os.makedirs(TEXT_FOLDER, exist_ok=True)
-    model = WhisperForConditionalGeneration.from_pretrained(model_dir)
+    model = WhisperForConditionalGeneration.from_pretrained(model_dir).to('cuda')
     processor = WhisperProcessor.from_pretrained(model_dir)
     tokenizer = WhisperTokenizer.from_pretrained(model_dir)
 
