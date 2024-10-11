@@ -67,7 +67,7 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
     def transcribe_audio_with_timestamps(audio_path):
         waveform, sample_rate = torchaudio.load(audio_path)
         if sample_rate != 16_000:
-            waveform = torchaudio.functional.resample(waveform, sample_rate, 16_000)(waveform)
+            waveform = torchaudio.functional.resample(waveform, sample_rate, 16_000)
         if waveform.ndim > 1:
             waveform = waveform.mean(dim=0, keepdim=True) 
         
