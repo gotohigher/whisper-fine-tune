@@ -5,6 +5,7 @@ import os
 import torchaudio
 import torch.nn.functional as F
 import shutil
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5):
     # Load model and processor
@@ -12,7 +13,7 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
     TEXT_FOLDER = 'result'
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     os.makedirs(TEXT_FOLDER, exist_ok=True)
-    model = WhisperForConditionalGeneration.from_pretrained(model_dir).to('cuda')
+    model = WhisperForConditionalGeneration.from_pretrained(model_dir).to(device)
     processor = WhisperProcessor.from_pretrained(model_dir)
     tokenizer = WhisperTokenizer.from_pretrained(model_dir)
 
@@ -69,12 +70,12 @@ def transcribe_audio(audio_file, model_dir, cut_duration=30, overlap_duration=5)
             waveform = torchaudio.functional.resample(waveform, sample_rate, 16_000)
         if waveform.ndim > 1:
             waveform = waveform.mean(dim=0, keepdim=True) 
-
-        inputs = processor(waveform.squeeze(0), return_tensors="pt", truncation=True, padding="longest", return_timestamps=True, return_attention_mask=True, sampling_rate=16_000)
-        audio_input = inputs.input_features
+        waveform = waveform.to(device)
+        inputs = processor(waveform.squeeze(0), return_tensors="pt", truncation=True, padding="longest", return_timestamps=True, return_attention_mask=True, sampling_rate=16_000).to(device)
+        audio_input = inputs.input_features.to(device)
         if audio_input.shape[-1] < 3000:
             padding = 3000 - audio_input.shape[-1]
-            audio_input = F.pad(audio_input, (0, padding), "constant", 0)
+            audio_input = F.pad(audio_input, (0, padding), "constant", 0).to(device)  
 
         if audio_input.ndim == 2:
             audio_input = audio_input.unsqueeze(0) 
