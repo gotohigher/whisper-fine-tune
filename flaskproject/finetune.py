@@ -70,7 +70,7 @@ def collate_fn(batch):
 def fine_tune_whisper(audio_dir, model, processor, tokenizer, num_epochs=3, batch_size=4):
     dataset = AudioDataset(audio_dir, processor, tokenizer)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 
     model.train()
     for epoch in range(num_epochs):
