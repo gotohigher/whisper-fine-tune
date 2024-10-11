@@ -10,8 +10,10 @@ CORS(app)
 # Configure the upload folder and allowed file extensions
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'wav'}  # Assuming you're uploading WAV files
+AUDIO_FOLDER = 'audio'
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
 
 # Create the uploads folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -76,7 +78,7 @@ def upload():
     
     if file and allowed_file(file.filename):
         filename = file.filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file_path = os.path.join(app.config['AUDIO_FOLDER'], filename)
         file.save(file_path)
 
         return jsonify(message="File uploaded successfully!", filename=filename), 201
