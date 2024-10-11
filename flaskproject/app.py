@@ -77,7 +77,7 @@ def upload():
     if file.filename == '':
         return jsonify(error="No selected file"), 400
     
-    if file and allowed_file(file.filename):
+    if file:
         filename = file.filename
         file_path = os.path.join(app.config['AUDIO_FOLDER'], filename)
         file.save(file_path)
