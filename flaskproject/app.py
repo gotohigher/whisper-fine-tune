@@ -25,7 +25,7 @@ def home():
     result = start_fine_tune('audio')
     return jsonify(message=result), 201 
 
-@app.route('/upload', methods=['POST'])
+@app.route('/upload_audio', methods=['POST'])
 def upload_file():
     # """Handle file upload."""
     if 'file' not in request.files:
@@ -62,6 +62,24 @@ def upload_file():
         #return jsonify(message="File uploaded successfully!", filename=filename, transcription=transcription), 201
     
     # return jsonify(error="File type not allowed"), 400
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    # """Handle file upload."""
+    if 'file' not in request.files:
+        return jsonify(error="No file part"), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify(error="No selected file"), 400
+    
+    if file and allowed_file(file.filename):
+        filename = file.filename
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+
+        return jsonify(message="File uploaded successfully!", filename=filename), 201
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
