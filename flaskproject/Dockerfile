@@ -8,7 +8,7 @@ WORKDIR /flaskproject
 RUN apt-get update && \
     apt-get install -y ffmpeg python3-pip && \
     apt-get install -y software-properties-common && \
-    apt-get install -y ubuntu-drivers-common && \
+    apt install -y ubuntu-drivers-common && \
     ubuntu-drivers devices && \
     apt-get install nvidia-driver-525 && \
     rm -rf /var/lib/apt/lists/*
