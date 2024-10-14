@@ -1,6 +1,6 @@
 # Use the official Python image from the Docker Hub
 FROM python:3.9-slim
-FROM ubunt:22.04
+FROM ubuntu:22.04
 
 # Set the working directory in the container
 WORKDIR /flaskproject
