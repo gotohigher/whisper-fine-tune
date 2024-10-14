@@ -8,9 +8,11 @@ WORKDIR /flaskproject
 RUN apt-get update && \
     apt-get install -y ffmpeg python3-pip && \
     apt-get install -y software-properties-common && \
+    add-apt-repository ppa:graphics-drivers/ppa && \
+    apt-get update && \
+    apt-get install -y ubuntu-drivers-common && \
     ubuntu-drivers autoinstall && \
     ubuntu-drivers devices && \
-    apt-get install nvidia-driver-525 && \
     rm -rf /var/lib/apt/lists/*
 
 # # Copy the requirements file into the container
