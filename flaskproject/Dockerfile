@@ -12,7 +12,7 @@ RUN apt-get update && \
     add-apt-repository ppa:graphics-drivers/ppa && \
     apt-get update && \
     apt-get install -y ubuntu-drivers-common && \
-    ubuntu-drivers autoinstall && \
+    # ubuntu-drivers autoinstall && \
     ubuntu-drivers devices && \
     rm -rf /var/lib/apt/lists/*
 
