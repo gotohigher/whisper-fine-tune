@@ -1,5 +1,6 @@
 # Use the official Python image from the Docker Hub
 FROM python:3.9-slim
+FROM ubunt:22.04
 
 # Set the working directory in the container
 WORKDIR /flaskproject
@@ -7,7 +8,7 @@ WORKDIR /flaskproject
 # Install FFmpeg and other dependencies
 RUN apt-get update && \
     apt-get install -y ffmpeg python3-pip && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y software-properties-common  python3-launchpadlib && \
     add-apt-repository ppa:graphics-drivers/ppa && \
     apt-get update && \
     apt-get install -y ubuntu-drivers-common && \
